@@ -13,7 +13,12 @@ class DataHandler:
     def load(self):
 
         mnist = tf.keras.datasets.mnist
-        (self.train_images, self.train_labels), (test_images, test_labels) = mnist.load_data()
+        # try:
+        #     (self.train_images, self.train_labels), (test_images, test_labels) = mnist.load_data()
+        # except:
+        path = 'E:\Fed-MNIST\mnist.npz'
+        (self.train_images, self.train_labels), (test_images, test_labels) = mnist.load_data(path)
+        
 
         tr_x = self.train_images[self.mapper[self.username][0]: self.mapper[self.username][1]]
         tr_y = self.train_labels[self.mapper[self.username][0]: self.mapper[self.username][1]]

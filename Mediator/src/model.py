@@ -32,6 +32,9 @@ class Model:
         weights = self.model.get_weights()
         return weights
 
+    def set_weights(self, weights):
+        self.model.set_weights(weights)
+
     def backpropagate(self, grads):
         pass
 

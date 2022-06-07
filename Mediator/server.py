@@ -5,7 +5,7 @@ import tensorflow as tf
 from src.model import Model
 from src.data_handler import DataHandler
 
-class Server:
+class Server(object):
 
     def __init__(self, IP=socket.gethostname(), PORT=12345,
      HEADER_LENGTH=10, number_of_parties=2) -> None:
@@ -68,6 +68,17 @@ class Server:
         
         for party in self.parties:
             self.send_message(party, weights)
+
+    def test(self, mediator):
+        x_ts, y_ts = DataHandler().load()
+        test_loss, test_acc = mediator.evaluate(x_ts,  y_ts)
+
+        print('\nTest accuracy:', test_acc)
+
+class SGDServer(Server):
+    def __init__(self, IP=socket.gethostname(), PORT=12345,
+     HEADER_LENGTH=10, number_of_parties=2):
+        super().__init__(IP, PORT, HEADER_LENGTH, number_of_parties)
 
     def recv_gradients(self):
 
@@ -134,7 +145,7 @@ class Server:
         # aggregated_grad = aggregated_grad/2
         return p0
 
-    def run(self, epochs=5000):   
+    def run(self, epochs=5000):
 
         print("create a mediator")
         # create a mediator
@@ -170,13 +181,87 @@ class Server:
                 print('Server is not longer available')
                 exit()
 
-    def test(self, mediator):
-        x_ts, y_ts = DataHandler().load()
-        test_loss, test_acc = mediator.evaluate(x_ts,  y_ts)
+class AVGServer(Server):
+    def __init__(self, IP=socket.gethostname(), PORT=12345,
+     HEADER_LENGTH=10, number_of_parties=2):
+        super().__init__(IP, PORT, HEADER_LENGTH, number_of_parties)
 
-        print('\nTest accuracy:', test_acc)
+    def recv_weights(self):
+
+        i = 0
+        weights = {}
+        flag = True
+        while flag:
+            read_sockets, _, exception_sockets = select.select(self.socket_list, [], self.socket_list)
+
+            for notified_socket in read_sockets:
+                if i != len(self.parties):
+                    i = i + 1
+                    message_header = notified_socket.recv(self.HEADER_LENGTH)
+                    if not len(message_header):
+                        return False
+                    message_length = int(message_header.decode('utf-8').strip())
+
+                    received_data = b""
+                    current_length = 0
+                    while current_length < message_length:
+                        received_data += notified_socket.recv(message_length - current_length)
+                        current_length = len(received_data)
+
+                    weight = pickle.loads(received_data)
+                    weights[notified_socket] = weight
+
+                if i == len(self.parties):
+                    flag = False
+
+        return weights
+
+    def aggregate(self, weights):
+        parties = list(weights.keys())
+        p0 = weights[parties[0]]
+        p1 = weights[parties[1]]
+        for i in range(0, len(p0)):
+            p0[i] += p1[i]
+            p0[i] /= 2
+        return p0
+
+    def run(self, epochs=10):
+
+        print("create a mediator")
+        # create a mediator
+        mediator = Model()
+        # server accepts clients
+        print("server accepts clients")
+        self.accept_clients()
+
+        epoch=0
+        while True:
+            try:
+                # server sends its weights to clients
+                weights = mediator.model.get_weights()
+                self.send_weights(weights)
+
+                # server waits for clients to send their weights
+                cweights = self.recv_weights()
+
+                # server aggregates weights recved from clients
+                agg_cweights = self.aggregate(cweights)
+
+                # set agg weights on mediator
+                mediator.model.set_weights(agg_cweights)
+
+                print('epochs:{}'.format(epoch))
+                
+                if epoch == epochs:
+                    return mediator
+                epoch = epoch+1
+
+            except Exception as err:
+                print(err)
+                print('Server is not longer available')
+                exit()
 
 if __name__ == "__main__":
-    server = Server()
+    server = AVGServer()
     mediator = server.run()
     server.test(mediator)
