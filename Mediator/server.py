@@ -225,7 +225,7 @@ class AVGServer(Server):
             p0[i] /= 2
         return p0
 
-    def run(self, epochs=10):
+    def run(self, epochs=30):
 
         print("create a mediator")
         # create a mediator

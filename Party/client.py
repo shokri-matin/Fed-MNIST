@@ -104,7 +104,6 @@ class AVGClient(Client):
         
         self.epochs = epochs
         super().__init__(IP, PORT, HEADER_LENGTH, number_of_parties, username, batch_size)
-        
 
     def send_weights(self, weights):
 
